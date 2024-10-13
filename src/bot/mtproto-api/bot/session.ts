@@ -1,47 +1,55 @@
-import { SupabaseClient } from "@supabase/supabase-js";
 import { StringSession } from "telegram/sessions";
 import { Context } from "../../../types";
+import { GithubStorage } from "../../../adapters/github/storage-layer";
 
 /**
  * This class extends the StringSession class from the Telegram library.
  *
- * It adds the ability to save and load the session data from Supabase.
+ * It adds the ability to save and load the session data from GitHub storage.
  */
-export class SupabaseSession extends StringSession {
-  supabase: SupabaseClient;
+export class GithubSession extends StringSession {
+  github: GithubStorage;
   context: Context;
+  session?: string;
 
-  constructor(supabase: SupabaseClient, context: Context, session?: string) {
+  constructor(github: GithubStorage, context: Context, session?: string) {
     super(session);
-    this.supabase = supabase;
+    this.github = github;
     this.context = context;
+    this.session = session;
   }
 
   async saveSession(): Promise<void> {
-    await this.supabase?.from("tg-bot-sessions").insert([{ session_data: super.save() }]);
+    if (!this.session) {
+      throw new Error("No session found. Please run the SMS Login script first.");
+    }
+    await this.github.handleSession(this.session, "create");
   }
 
-  async loadSession(): Promise<SupabaseSession> {
-    const session = await this.supabase?.from("tg-bot-sessions").select("session_data").single();
+  async loadSession() {
+    const session = await this.github.retrieveSession();
 
-    if (session.data) {
-      return new SupabaseSession(this.supabase, this.context, session.data.session_data);
+    if (session) {
+      return new GithubSession(this.github, this.context, session);
     } else {
       throw new Error("No session found. Please run the SMS Login script first.");
     }
   }
 
   async getSession(): Promise<string> {
-    const session = await this.supabase?.from("tg-bot-sessions").select("session_data").single();
+    const session = await this.github.retrieveSession();
 
-    if (session.data) {
-      return session.data.session_data;
+    if (session) {
+      return session;
     } else {
       throw new Error("No session found. Please run the SMS Login script first.");
     }
   }
 
   async deleteSession(): Promise<void> {
-    await this.supabase?.from("tg-bot-sessions").delete();
+    if (!this.session) {
+      throw new Error("No session found. Please run the SMS Login script first.");
+    }
+    await this.github.handleSession(this.session, "delete");
   }
 }

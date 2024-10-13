@@ -1,12 +1,8 @@
-import { SupabaseClient } from "@supabase/supabase-js";
-import { User } from "./supabase/helpers/user";
-import { Chats } from "./supabase/helpers/chats";
+import { GithubStorage } from "./github/storage-layer";
+import { Context } from "../types";
 
-export function createAdapters(supabaseClient: SupabaseClient) {
+export function createAdapters(ctx: Context, storageOwner?: string) {
   return {
-    supabase: {
-      user: new User(supabaseClient),
-      chats: new Chats(supabaseClient),
-    },
+    github: new GithubStorage(ctx, { storageOwner }),
   };
 }

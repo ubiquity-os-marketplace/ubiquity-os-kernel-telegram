@@ -17,24 +17,21 @@ dotenv.config();
  */
 
 class SetUpHandler {
-  private _env: Context["env"] = {
+  private _env = {
+    REPO_ADMIN_ACCESS_TOKEN: null,
     TELEGRAM_BOT_ENV: {
       botSettings: {
         TELEGRAM_BOT_ADMINS: [],
-        TELEGRAM_BOT_TOKEN: "",
-        TELEGRAM_BOT_WEBHOOK: "",
-        TELEGRAM_BOT_WEBHOOK_SECRET: "",
+        TELEGRAM_BOT_TOKEN: null,
+        TELEGRAM_BOT_WEBHOOK: null,
+        TELEGRAM_BOT_WEBHOOK_SECRET: null,
       },
       mtProtoSettings: {
-        TELEGRAM_API_HASH: "",
+        TELEGRAM_API_HASH: null,
         TELEGRAM_APP_ID: 0,
       },
-      storageSettings: {
-        SUPABASE_SERVICE_KEY: "",
-        SUPABASE_URL: "",
-      },
     },
-  };
+  } as unknown as Context["env"];
 
   get env() {
     return this._env;
@@ -60,7 +57,7 @@ class SetUpHandler {
       questions: [
         {
           type: "input",
-          name: "GITHUB_PAT_TOKEN",
+          name: "REPO_ADMIN_ACCESS_TOKEN",
           message:
             "Enter your GitHub PAT token.\n    This is used to store secrets in your repository so it should have the 'repo' scope and be an admin of the repository.",
         },
@@ -111,19 +108,21 @@ class SetUpHandler {
       questions: [
         {
           type: "input",
-          name: "SUPABASE_SERVICE_KEY",
-          message: "Enter your Supabase service key (read/write access)",
+          name: "STORAGE_APP_ID",
+          message:
+            "Enter your storage app id. This can be obtained from `https://github.com/settings/apps`\n\n This should be saved as an organization secret but we'll save it to the repo too.",
         },
         {
           type: "input",
-          name: "SUPABASE_URL",
-          message: "Enter your Supabase URL (https://<project_id>.supabase.co)",
+          name: "STORAGE_APP_PRIVATE_KEY",
+          message:
+            "Enter your storage app private key. This can be obtained following the instructions in the README. \n\n This should be saved as an organization secret but we'll save it to the repo too.",
         },
       ],
     },
   ];
 
-  shouldTestToken = !!process.env.GITHUB_PAT_TOKEN;
+  shouldTestToken = !!process.env.REPO_ADMIN_ACCESS_TOKEN;
   hasSetRepository = !!process.env.TELEGRAM_BOT_REPOSITORY_FULL_NAME;
 
   async handleFirstTwo(question: { name: string; message: string }, answer: string) {
@@ -136,8 +135,8 @@ class SetUpHandler {
       logger.ok("Repository name saved successfully");
     }
 
-    if (question.name === "GITHUB_PAT_TOKEN") {
-      await appendFile(".env", `\nGITHUB_PAT_TOKEN=${answer}`, "utf-8");
+    if (question.name === "REPO_ADMIN_ACCESS_TOKEN") {
+      await appendFile(".env", `\nREPO_ADMIN_ACCESS_TOKEN=${answer}`, "utf-8");
       logger.ok("GitHub PAT token saved successfully, we must restart the script to continue.");
       process.exit(0);
     }
@@ -149,30 +148,14 @@ class SetUpHandler {
       const questions = step.questions;
 
       for (const question of questions) {
-        if (
-          (question.name === "TELEGRAM_BOT_REPOSITORY_FULL_NAME" && this.hasSetRepository) ||
-          (question.name === "GITHUB_PAT_TOKEN" && (await this.testAccessToken()))
-        ) {
-          continue;
-        }
-        console.log(step.title);
-        const answer = await input.text(`  ${question.message}\n>  `);
-
-        await this.handleFirstTwo(question, answer);
-
-        answers[step.title] ??= {};
-
-        if (question.name === "TELEGRAM_BOT_ADMINS") {
-          answers[step.title][question.name] = JSON.stringify(answer.split(",").map((id: string) => Number(id)));
-          continue;
-        }
-
-        answers[step.title][question.name] = answer;
+        await this.handleQuestions(answers, step, question);
       }
     }
     console.clear();
 
     this.env = {
+      STORAGE_APP_ID: answers["Storage settings"]["STORAGE_APP_ID"],
+      STORAGE_APP_PRIVATE_KEY: answers["Storage settings"]["STORAGE_APP_PRIVATE_KEY"],
       TELEGRAM_BOT_ENV: {
         botSettings: {
           TELEGRAM_BOT_ADMINS: JSON.parse(answers["Bot settings"]["TELEGRAM_BOT_ADMINS"]),
@@ -184,24 +167,66 @@ class SetUpHandler {
           TELEGRAM_API_HASH: answers["MTProto settings"]["TELEGRAM_API_HASH"],
           TELEGRAM_APP_ID: Number(answers["MTProto settings"]["TELEGRAM_APP_ID"]),
         },
-        storageSettings: {
-          SUPABASE_SERVICE_KEY: answers["Storage settings"]["SUPABASE_SERVICE_KEY"],
-          SUPABASE_URL: answers["Storage settings"]["SUPABASE_URL"],
-        },
       },
     };
 
     await this.validateEnv();
   }
 
+  async handleQuestions(
+    answers: Record<string, Record<string, string>>,
+    step: { title: string; questions: { type: string; name: string; message: string }[] },
+    question: { name: string; message: string }
+  ) {
+    answers[step.title] ??= {};
+
+    // Skip these as they are already set
+    if (question.name === "TELEGRAM_BOT_REPOSITORY_FULL_NAME" && this.hasSetRepository) {
+      answers[step.title][question.name] = process.env.TELEGRAM_BOT_REPOSITORY_FULL_NAME as string;
+      return;
+    }
+    if (question.name === "REPO_ADMIN_ACCESS_TOKEN" && (await this.testAccessToken())) {
+      answers[step.title][question.name] = process.env.REPO_ADMIN_ACCESS_TOKEN as string;
+      return;
+    }
+
+    console.log(step.title);
+
+    const passwords = [
+      "STORAGE_APP_PRIVATE_KEY",
+      "TELEGRAM_BOT_WEBHOOK_SECRET",
+      "REPO_ADMIN_ACCESS_TOKEN",
+      "TELEGRAM_API_HASH",
+      "TELEGRAM_BOT_TOKEN",
+      "TELEGRAM_APP_ID",
+    ];
+    let answer;
+
+    if (passwords.includes(question.name)) {
+      answer = await input.password(`  ${question.message}\n>  `);
+    } else {
+      answer = await input.text(`  ${question.message}\n>  `);
+    }
+
+    await this.handleFirstTwo(question, answer);
+
+    if (question.name === "TELEGRAM_BOT_ADMINS") {
+      answers[step.title][question.name] = JSON.stringify(answer.split(",").map((id: string) => Number(id)));
+      return;
+    }
+
+    answers[step.title][question.name] = answer;
+  }
+
   async validateEnv() {
-    const env = this.env.TELEGRAM_BOT_ENV;
-    const { botSettings, mtProtoSettings, storageSettings } = env;
+    const { TELEGRAM_BOT_ENV, STORAGE_APP_PRIVATE_KEY, STORAGE_APP_ID } = this.env;
+    const { botSettings, mtProtoSettings } = TELEGRAM_BOT_ENV;
 
     const merged = {
       ...botSettings,
       ...mtProtoSettings,
-      ...storageSettings,
+      STORAGE_APP_PRIVATE_KEY,
+      STORAGE_APP_ID,
     };
 
     const keys = Object.keys(merged);
@@ -231,9 +256,11 @@ class SetUpHandler {
 
     const telegramBotEnv = `TELEGRAM_BOT_ENV=${JSON.stringify(this.env.TELEGRAM_BOT_ENV)}`;
     const repositoryEnv = `TELEGRAM_BOT_REPOSITORY_FULL_NAME=${process.env.TELEGRAM_BOT_REPOSITORY_FULL_NAME}`;
+    const storageAppId = `STORAGE_APP_ID=${this.env.STORAGE_APP_ID}`;
+    const storageAppPrivateKey = `STORAGE_APP_PRIVATE_KEY=${this.env.STORAGE_APP_PRIVATE_KEY}`;
 
     for (const path of paths) {
-      const envVar = `${repositoryEnv}\n${telegramBotEnv}`;
+      const envVar = `${repositoryEnv}\n${telegramBotEnv}\n${storageAppId}\n${storageAppPrivateKey}`;
       await writeFile(path, envVar, "utf-8");
     }
 
@@ -255,7 +282,7 @@ class SetUpHandler {
     if (!this.shouldTestToken) {
       return false;
     }
-    const octokit = new Octokit({ auth: process.env.GITHUB_PAT_TOKEN });
+    const octokit = new Octokit({ auth: process.env.REPO_ADMIN_ACCESS_TOKEN });
     const secret = `{}`;
 
     try {
@@ -284,9 +311,11 @@ class SetUpHandler {
   }
 
   async storeRepoSecrets() {
-    const octokit = new Octokit({ auth: process.env.GITHUB_PAT_TOKEN });
+    const octokit = new Octokit({ auth: process.env.REPO_ADMIN_ACCESS_TOKEN });
     const secrets = {
       TELEGRAM_BOT_ENV: this.env.TELEGRAM_BOT_ENV,
+      STORAGE_APP_ID: this.env.STORAGE_APP_ID,
+      STORAGE_APP_PRIVATE_KEY: this.env.STORAGE_APP_PRIVATE_KEY,
     };
 
     try {

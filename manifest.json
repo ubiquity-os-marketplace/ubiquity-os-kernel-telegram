@@ -1,5 +1,13 @@
 {
-  "name": "ubiquity-os/kernel-telegram",
+  "name": "ubq-testing/telegram--bot",
   "description": "Part kernel plugin, part Telegram kernel. This bot is designed to be a bridge between UbiquityOS and Telegram.",
-  "ubiquity:listeners": ["issues.labeled", "issues.closed", "issues.reopened"]
+  "ubiquity:listeners": [
+    "issues.labeled",
+    "issues.closed",
+    "issues.reopened",
+    "issue_comment.created",
+    "issue_comment.edited",
+    "issues.unassigned",
+    "pull_request.review_requested"
+  ]
 }

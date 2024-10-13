@@ -27,7 +27,7 @@ export async function addCommentToIssue(context: Context, msg: string, owner?: s
   }
 
   try {
-    await octokit.issues.createComment({
+    await octokit.rest.issues.createComment({
       owner,
       repo,
       issue_number: issueNumber,

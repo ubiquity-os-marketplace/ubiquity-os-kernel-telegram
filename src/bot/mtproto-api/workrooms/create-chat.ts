@@ -89,6 +89,18 @@ export async function createChat(context: Context<"issues.labeled", SupportedEve
     return { status: 500, reason: "chat_create_failed", content: { error: er } };
   }
 
-  await context.adapters.supabase.chats.saveChat(chatId, payload.issue.title, payload.issue.node_id);
+  await context.adapters.github.handleChat({
+    action: "create",
+    chat: {
+      chatId: chatId,
+      chatName: chatName,
+      taskNodeId: payload.issue.node_id,
+      userIds: [],
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+      status: "open",
+      // sha: // SHA is only for when we retrieve it from the GitHub API, as a ref to the latest commit
+    },
+  });
   return { status: 200, reason: "chat_created" };
 }

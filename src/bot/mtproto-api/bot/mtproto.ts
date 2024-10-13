@@ -1,34 +1,28 @@
 import dotenv from "dotenv";
 import { BaseMtProto } from "./scripts/sms-auth/base-mtproto";
-import { SupabaseSession } from "./session";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { GithubSession } from "./session";
 import { Context } from "../../../types";
+import { GithubStorage } from "../../../adapters/github/storage-layer";
 dotenv.config();
 
 /**
  * This class MUST ONLY be used in the context of workflows as
  * it requires a Node.js environment which is not available with Cloudflare Workers.
  *
- * An extension of the BaseMtProto class that integrates with the Supabase based
- * session management.
+ * An extension of the BaseMtProto class that integrates with the GitHub
+ * storage based session management.
  */
 export class MtProto extends BaseMtProto {
-  private _supabase: SupabaseClient | null = null;
   private _context: Context;
-  _session: SupabaseSession;
+  _session: GithubSession;
+  githubStorage: GithubStorage;
 
   constructor(context: Context) {
     super();
 
-    const { SUPABASE_URL, SUPABASE_SERVICE_KEY } = context.env.TELEGRAM_BOT_ENV.storageSettings;
-
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-      throw new Error("Missing required environment variables for Supabase");
-    }
-
-    this._supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     this._context = context;
-    this._session = new SupabaseSession(this._supabase, this._context);
+    this.githubStorage = context.adapters.github;
+    this._session = new GithubSession(this.githubStorage, context);
   }
 
   async initialize() {

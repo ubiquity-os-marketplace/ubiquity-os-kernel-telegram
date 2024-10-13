@@ -1,11 +1,12 @@
-import { Octokit } from "@octokit/rest";
 import { Value } from "@sinclair/typebox/value";
 import { Logs } from "@ubiquity-dao/ubiquibot-logger";
 import { createAdapters } from "../adapters";
-import { createClient } from "@supabase/supabase-js";
 import { PluginInputs } from "./plugin-inputs";
 import { Env, envValidator } from "./env";
 import { Context } from "./context";
+import { App } from "octokit";
+import { logger } from "../utils/logger";
+import { Octokit } from "@octokit/rest";
 
 /**
  * Singleton for the plugin context making accessing it throughout
@@ -44,22 +45,40 @@ export class PluginContext {
     return this.inputs;
   }
 
+  getStorageApp() {
+    try {
+      return new App({
+        appId: this.env.STORAGE_APP_ID,
+        privateKey: this.env.STORAGE_APP_PRIVATE_KEY,
+      });
+    } catch (er) {
+      throw logger.error("Error initializing storage app", { er });
+    }
+  }
+
+  getStdOctokit() {
+    return new Octokit({ auth: this.inputs.authToken });
+  }
+
   getContext(): Context {
-    const octokit = new Octokit({ auth: this.inputs.authToken });
-    const ctx: Context = {
+    const octokit: Context["octokit"] = new Octokit({ auth: this.inputs.authToken });
+
+    if (!octokit) {
+      throw new Error("Octokit could not be initialized");
+    }
+
+    const ctx = {
       eventName: this.inputs.eventName,
       payload: this.inputs.eventPayload,
       config: this.inputs.settings,
       octokit,
       env: this.env,
       logger: new Logs("verbose"),
-      adapters: {} as ReturnType<typeof createAdapters>,
+    } as Context;
+
+    return {
+      ...ctx,
+      adapters: createAdapters(ctx),
     };
-
-    const { storageSettings } = ctx.env.TELEGRAM_BOT_ENV;
-
-    ctx.adapters = createAdapters(createClient(storageSettings.SUPABASE_URL, storageSettings.SUPABASE_SERVICE_KEY));
-
-    return ctx;
   }
 }

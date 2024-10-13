@@ -1,5 +1,9 @@
 import { Context, SupportedEventsU } from "../types";
 import { ProxyCallbacks } from "../types/proxy";
+import { bubbleUpErrorComment } from "../utils/errors";
+import { notificationsRequiringComments } from "./private-notifications/comment-triggers";
+import { disqualificationNotification } from "./private-notifications/disqualification-trigger";
+import { reviewNotification } from "./private-notifications/review-trigger";
 
 /**
  * The `callbacks` object defines an array of callback functions for each supported event type.
@@ -8,7 +12,12 @@ import { ProxyCallbacks } from "../types/proxy";
  * callback in an array. This design allows for extensibility and flexibility, enabling
  * us to add more callbacks for a particular event without modifying the core logic.
  */
-const callbacks = {} as ProxyCallbacks;
+const callbacks = {
+  "issue_comment.created": [notificationsRequiringComments],
+  "issue_comment.edited": [notificationsRequiringComments],
+  "issues.unassigned": [disqualificationNotification],
+  "pull_request.review_requested": [reviewNotification],
+} as ProxyCallbacks;
 
 /**
  * The `proxyCallbacks` function returns a Proxy object that intercepts access to the
@@ -37,7 +46,7 @@ export function proxyCallbacks(context: Context): ProxyCallbacks {
         try {
           return await Promise.all(target[prop].map((callback) => handleCallback(callback, context)));
         } catch (er) {
-          context.logger.error(`Failed to handle event ${prop}`, { er });
+          await bubbleUpErrorComment(context, er);
           return { status: 500, reason: "failed" };
         }
       })();

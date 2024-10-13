@@ -6,18 +6,19 @@ import { StandardValidator } from "typebox-validators";
 /**
  * We can restrict which updates the BotFather bot will receive.
  */
-const allowedUpdates = T.Object({
-  message: T.String(),
-  poll: T.String(),
-  edited_message: T.String(),
-  channel_post: T.String(),
-  edited_channel_post: T.String(),
-  business_connection: T.String(),
-  business_message: T.String(),
-  edited_business_message: T.String(),
-  deleted_business_messages: T.String(),
-  message_reaction_count: T.String(),
-});
+
+const allowedUpdates = {
+  message: "message",
+  poll: "poll",
+  edited_message: "edited_message",
+  channel_post: "channel_post",
+  edited_channel_post: "edited_channel_post",
+  business_connection: "business_connection",
+  business_message: "business_message",
+  edited_business_message: "edited_business_message",
+  deleted_business_messages: "deleted_business_messages",
+  message_reaction_count: "message_reaction_count",
+} as const;
 
 const botSettings = T.Object({
   /**
@@ -55,21 +56,9 @@ const mtProtoSettings = T.Object({
   TELEGRAM_API_HASH: T.String(),
 });
 
-const storageSettings = T.Object({
-  /**
-   * The supabase instance url for storing chats, sessions, etc.
-   */
-  SUPABASE_URL: T.String(),
-  /**
-   * The supabase service key for storing chats, sessions, etc.
-   */
-  SUPABASE_SERVICE_KEY: T.String(),
-});
-
 const TELEGRAM_BOT_ENV = T.Object({
   botSettings,
   mtProtoSettings,
-  storageSettings,
 });
 
 const botEnvValidator = new StandardValidator(TELEGRAM_BOT_ENV);
@@ -89,6 +78,8 @@ export const env = T.Object({
       return str;
     })
     .Encode((obj) => JSON.stringify(obj)),
+  STORAGE_APP_ID: T.String(),
+  STORAGE_APP_PRIVATE_KEY: T.String(),
 });
 
 export type Env = StaticDecode<typeof env>;

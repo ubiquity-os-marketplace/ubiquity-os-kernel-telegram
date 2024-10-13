@@ -1,3 +1,4 @@
+import bigInt from "big-integer";
 import { Context, SupportedEvents } from "../../../types";
 import { CallbackResult } from "../../../types/proxy";
 import { MtProto } from "../bot/mtproto";
@@ -6,9 +7,7 @@ import { Api } from "telegram";
 export async function reopenChat(context: Context<"issues.reopened", SupportedEvents["issues.reopened"]>): Promise<CallbackResult> {
   const {
     payload,
-    adapters: {
-      supabase: { chats },
-    },
+    adapters: { github },
     logger,
   } = context;
 
@@ -20,11 +19,16 @@ export async function reopenChat(context: Context<"issues.reopened", SupportedEv
   await mtProto.initialize();
 
   logger.info("Reopening chat with name: ", { chatName: payload.issue.title });
-  const chat = await chats.getChatByTaskNodeId(payload.issue.node_id);
+  const chat = await github.retrieveChatByTaskNodeId(payload.issue.node_id);
+
+  if (!chat) {
+    return { status: 500, reason: "chat_not_found" };
+  }
+  const chatIdBigInt = bigInt(chat.chatId);
 
   const fetchedChat = await mtProto.client.invoke(
     new mtProto.api.messages.GetFullChat({
-      chatId: chat.chat_id,
+      chatId: chatIdBigInt,
     })
   );
 
@@ -37,7 +41,7 @@ export async function reopenChat(context: Context<"issues.reopened", SupportedEv
     new mtProto.api.folders.EditPeerFolders({
       folderPeers: [
         new mtProto.api.InputFolderPeer({
-          peer: new mtProto.api.InputPeerChat({ chatId: chat.chat_id }),
+          peer: new mtProto.api.InputPeerChat({ chatId: chatIdBigInt }),
           folderId: 0,
         }),
       ],
@@ -55,20 +59,19 @@ export async function reopenChat(context: Context<"issues.reopened", SupportedEv
   // add the creator back to obtain control of the chat
   await mtProto.client.invoke(
     new mtProto.api.messages.AddChatUser({
-      chatId: chat.chat_id,
+      chatId: chatIdBigInt,
       userId: chatCreator,
       fwdLimit: 50,
     })
   );
 
-  await chats.updateChatStatus("reopened", payload.issue.node_id);
-  const users = await chats.getChatUsers(chat.chat_id);
-  if (!users) {
-    throw new Error("Failed to get chat users");
-  }
+  await github.handleChat({
+    action: "reopen",
+    chat,
+  });
 
-  const { user_ids: userIds } = users;
-  const chatInput = await mtProto.client.getInputEntity(chat.chat_id);
+  const { userIds } = chat;
+  const chatInput = await mtProto.client.getInputEntity(chatIdBigInt);
 
   for (const userId of userIds) {
     /**
@@ -100,7 +103,7 @@ export async function reopenChat(context: Context<"issues.reopened", SupportedEv
   await mtProto.client.invoke(
     new mtProto.api.messages.SendMessage({
       message: "This task has been reopened and this chat has been unarchived.",
-      peer: new mtProto.api.InputPeerChat({ chatId: chat.chat_id }),
+      peer: new mtProto.api.InputPeerChat({ chatId: chatIdBigInt }),
     })
   );
   return { status: 200, reason: "chat_reopened" };

@@ -9,13 +9,16 @@ import { userIdFeature } from "./features/commands/private-chat/user-id";
 import { chatIdFeature } from "./features/commands/shared/chat-id";
 import { botIdFeature } from "./features/commands/private-chat/bot-id";
 import { banCommand } from "./features/commands/groups/ban";
-import { setWebhookFeature } from "./features/commands/private-chat/set-webhook";
+import { setWebhookFeature } from "./features/admin/set-webhook";
 import { Logger } from "../utils/logger";
 import { createContextConstructor, GrammyContext, SessionData } from "./helpers/grammy-context";
 import { errorHandler } from "./handlers/error";
 import { session } from "./middlewares/session";
-import { welcomeFeature } from "./features/welcome";
+import { welcomeFeature } from "./features/start-command";
 import { unhandledFeature } from "./features/helpers/unhandled";
+import { registerFeature } from "./features/commands/private-chat/register";
+import { notifySubscribeFeature } from "./features/commands/private-chat/notify-subscribe";
+import { walletFeature } from "./features/commands/private-chat/wallet";
 
 interface Dependencies {
   config: UbiquityOsContext["env"];
@@ -62,6 +65,11 @@ export function createBot(token: string, dependencies: Dependencies, options: Op
   protectedBot.use(userIdFeature);
   protectedBot.use(chatIdFeature);
   protectedBot.use(botIdFeature);
+
+  // Private chat commands
+  protectedBot.use(registerFeature); // /register <GitHub username>
+  protectedBot.use(notifySubscribeFeature); // /subscribe
+  protectedBot.use(walletFeature); // /wallet <wallet address>
 
   // group commands
   protectedBot.use(banCommand);

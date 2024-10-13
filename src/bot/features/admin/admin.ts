@@ -3,7 +3,7 @@ import { Composer } from "grammy";
 import { GrammyContext } from "../../helpers/grammy-context";
 import { isAdmin } from "../../filters/is-admin";
 import { logHandle } from "../../helpers/logging";
-import { setCommandsHandler } from "../../handlers/commands/setcommands";
+import { setCommandsHandler } from "../../setcommands";
 
 const composer = new Composer<GrammyContext>();
 

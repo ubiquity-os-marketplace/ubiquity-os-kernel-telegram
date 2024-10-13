@@ -1,8 +1,8 @@
 import { chatAction } from "@grammyjs/auto-chat-action";
 import { Composer } from "grammy";
-import { GrammyContext } from "../../../helpers/grammy-context";
-import { isAdmin } from "../../../filters/is-admin";
-import { logHandle } from "../../../helpers/logging";
+import { GrammyContext } from "../../helpers/grammy-context";
+import { isAdmin } from "../../filters/is-admin";
+import { logHandle } from "../../helpers/logging";
 
 const composer = new Composer<GrammyContext>();
 
@@ -17,8 +17,8 @@ feature.command("setwebhook", logHandle("command-setwebhook"), chatAction("typin
   try {
     await ctx.api.setWebhook(webhookUrl);
     return ctx.reply("Webhook URL has been set.");
-  } catch {
-    return ctx.reply("Failed to set webhook URL.");
+  } catch (er) {
+    return ctx.reply(`Failed to set webhook URL. \n\n${JSON.stringify(er)}`);
   }
 });
 

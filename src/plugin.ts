@@ -15,8 +15,6 @@ export async function runPlugin(context: Context) {
 }
 
 export async function plugin(inputs: PluginInputs, env: Env) {
-  PluginContext.initialize(inputs, env);
-  const context = PluginContext.getInstance().getContext();
-  const res = await runPlugin(context);
-  return res;
+  const context = PluginContext.initialize(inputs, env);
+  return await runPlugin(context);
 }
